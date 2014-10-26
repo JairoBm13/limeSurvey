@@ -32,7 +32,7 @@
         //------------------------------
         
         private HttpPost post;
-        private String url;
+        private final String url = "http://localhost/index.php?r=admin/remotecontrol";;
 	private URL serverURL;
         private HttpClient cliente;
         private String key;
@@ -42,12 +42,20 @@
         //-----------------------------
         
         public prueba(){
-            post = new HttpPost("http://localhost/index.php?r=admin/remotecontrol");
-            post.setHeader("content-type", "application/json");
-            url = "http://localhost/index.php?r=admin/remotecontrol";
+            cliente = HttpClients.createDefault();
+            post = new HttpPost(url);
+		post.setHeader("Content-type", "application/json");
             try {
                 key = getSessionKey();
             } catch (UnsupportedEncodingException ex) {
+                Logger.getLogger(prueba.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        
+        public static void main(String[] args){
+            try {
+                prueba prueba = new prueba();
+            } catch (Exception ex) {
                 Logger.getLogger(prueba.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
@@ -57,6 +65,7 @@
         //----------------------------
         
 	public static String parse(String jsonLine) {
+
             JsonElement jelement = new JsonParser().parse(jsonLine);
             JsonObject jobject = jelement.getAsJsonObject();
             String result = jobject.get("result").getAsString();
@@ -64,7 +73,10 @@
 	}
         
         public String getSessionKey() throws UnsupportedEncodingException{
-            post.setEntity( new StringEntity("{\"method\": \"get_session_key\", \"params\": {\"username\": \"admin\", \"password\": \"password\" }, \"id\": 1}"));
+            post.setEntity( new StringEntity("{\"method\": "
+                    + "\"get_session_key\", "
+                    + "\"params\": {\"username\": \"admin\", \"password\": "
+                    + "\"password\" }, \"id\": 1}"));
             try {
                 HttpResponse response = cliente.execute(post);
                 if(response.getStatusLine().getStatusCode() == 200){
@@ -76,24 +88,62 @@
             }
             return key;
         }
+    
+        public String transformFromB64(String toConvert){
+            String retorno = new String(Base64.decodeBase64(toConvert));
+            return retorno;
+        }
         
-        public String listSurveys(int surveyId) throws IOException{
+        public String getQuestionsProperties(int qId){
+            JsonObject request = new JsonObject();
+            JsonObject params = new JsonObject();
+            request.addProperty("method", "get_question_properties");
+            params.addProperty("sSessionKey", key);
+            params.addProperty("iQuestionID", qId);
+            params.addProperty("title", "title");
+            params.addProperty("sid", "sid");
+            params.addProperty("gid","gid");
+            params.addProperty("preg","preg");
+            params.addProperty("answeroptions", "answeroptions");
+            request.add("aQuestionSettings", params);
+            request.addProperty("id", 1);
+            System.out.println("Request : "+request.toString() );
+            try {
+                post.setEntity(new StringEntity(request.toString()));
+                HttpResponse response = cliente.execute(post);
+                if (response.getStatusLine().getStatusCode() == 200) {
+                    HttpEntity entidad = response.getEntity();
+                    System.out.println(EntityUtils.toString(entidad));
+                    String ans = parse(EntityUtils.toString(entidad));
+                    String traducida = transformFromB64(ans);
+                    System.out.println(traducida);
+                }
+            } catch (UnsupportedEncodingException ex) {
+                System.err.println("se toteo en la entidad");
+            } catch (IOException ex) {
+                System.err.println("se toteo en la respuesta");
+            }
+            return null;
+        }
+    
+        
+        public String listSurveys() throws IOException{
             JsonObject request = new JsonObject();
             JsonObject params = new JsonObject();
             params.addProperty("method", "list_surveys");
+            request.addProperty("sSessionKey", key);
             request.addProperty("sUser", "admin");
+            
             System.out.println("Request: " + request.toString());
             try {
                 post.setEntity(new StringEntity(request.toString()));
                 HttpResponse response = cliente.execute(post);
                 if (response.getStatusLine().getStatusCode() == 200) {
                     HttpEntity entity = response.getEntity();
-                    entity = response.getEntity();
-                    JsonParser gson = new JsonParser();
-                    JsonObject respuesta = (JsonObject) gson.parse(EntityUtils.toString(entity));
-                    String ans = respuesta.get("result").getAsString();
-                    String stringFromBase = new String(Base64.decodeBase64(ans));
-                    System.out.println("reponse: " + stringFromBase);
+                    //System.out.println(EntityUtils.toString(entity));
+                    String ans = parse(EntityUtils.toString(entity));
+                    String stringFromBase = transformFromB64(ans);
+                    System.out.println(stringFromBase);
 		}
             } catch (UnsupportedEncodingException ex) {
                 Logger.getLogger(prueba.class.getName()).log(Level.SEVERE, null, ex);
